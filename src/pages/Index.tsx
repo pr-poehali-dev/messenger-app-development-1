@@ -302,14 +302,16 @@ const Index = () => {
 
     try {
       const chatId = await api.createChat([currentUser.id, userId]);
-      await loadChats();
       setSearchQuery('');
       setUsers([]);
       
-      setTimeout(() => {
-        handleSelectChat(chatId);
-      }, 500);
+      await loadChats();
+      
+      setTimeout(async () => {
+        await handleSelectChat(chatId);
+      }, 100);
     } catch (error) {
+      console.error('Chat creation error:', error);
       toast.error('Не удалось создать чат');
     }
   };
