@@ -34,6 +34,7 @@ interface ChatListProps {
   users: User[];
   searchQuery: string;
   onSearchChange: (query: string) => void;
+  onUserClick?: (userId: string) => void;
   currentUser: User;
 }
 
@@ -49,6 +50,7 @@ const ChatList = ({
   users,
   searchQuery,
   onSearchChange,
+  onUserClick,
   currentUser,
 }: ChatListProps) => {
   const [showSearch, setShowSearch] = useState(false);
@@ -192,13 +194,9 @@ const ChatList = ({
                       key={user.id}
                       className="flex items-center gap-3 p-2 hover:bg-accent rounded-lg cursor-pointer transition-colors"
                       onClick={() => {
-                        const existingChat = chats.find(
-                          (c) => c.userId === user.id
-                        );
-                        if (existingChat) {
-                          onSelectChat(existingChat.id);
+                        if (onUserClick) {
+                          onUserClick(user.id);
                         }
-                        onSearchChange('');
                       }}
                     >
                       <Avatar className="w-10 h-10">

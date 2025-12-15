@@ -369,6 +369,7 @@ const Index = () => {
         }))}
         searchQuery={searchQuery}
         onSearchChange={handleSearchUsers}
+        onUserClick={(userId) => handleUserClick(parseInt(userId))}
         currentUser={currentUser ? {
           id: currentUser.id.toString(),
           name: currentUser.name,
