@@ -1,198 +1,234 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import AuthScreen from '@/components/AuthScreen';
 import ChatList from '@/components/ChatList';
 import ChatWindow from '@/components/ChatWindow';
 import ProfilePanel from '@/components/ProfilePanel';
 import CallModal from '@/components/CallModal';
-import { Chat, Message, User } from '@/types';
+import { toast } from 'sonner';
+import * as api from '@/lib/api';
+
+interface LocalUser {
+  id: number;
+  name: string;
+  username: string;
+  avatar: string;
+  banner?: string;
+  bio?: string;
+  online?: boolean;
+}
+
+interface LocalMessage {
+  id: string;
+  text: string;
+  senderId: number;
+  timestamp: Date;
+  read: boolean;
+}
+
+interface LocalChat {
+  id: number;
+  userId: number;
+  name: string;
+  avatar: string;
+  lastMessage: string;
+  timestamp: Date;
+  unread: number;
+  pinned: boolean;
+  online: boolean;
+  isGroup?: boolean;
+  memberIds?: number[];
+}
 
 const Index = () => {
-  const [currentUser] = useState<User>({
-    id: '1',
-    name: 'Вы',
-    username: '@you',
-    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=you',
-    bio: 'Люблю общаться!',
-  });
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [currentUser, setCurrentUser] = useState<LocalUser | null>(null);
+  const [token, setToken] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const [users] = useState<User[]>([
-    {
-      id: '2',
-      name: 'Анна Иванова',
-      username: '@anna',
-      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=anna',
-      bio: 'Дизайнер',
-      online: true,
-    },
-    {
-      id: '3',
-      name: 'Максим Петров',
-      username: '@maxim',
-      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=maxim',
-      bio: 'Разработчик',
-      online: false,
-    },
-    {
-      id: '4',
-      name: 'Елена Смирнова',
-      username: '@elena',
-      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=elena',
-      bio: 'Маркетолог',
-      online: true,
-    },
-  ]);
-
-  const [chats, setChats] = useState<Chat[]>([
-    {
-      id: '1',
-      userId: '2',
-      name: 'Анна Иванова',
-      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=anna',
-      lastMessage: 'Привет! Как дела?',
-      timestamp: new Date(Date.now() - 1000 * 60 * 5),
-      unread: 2,
-      pinned: true,
-      online: true,
-    },
-    {
-      id: '2',
-      userId: '3',
-      name: 'Максим Петров',
-      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=maxim',
-      lastMessage: 'Отлично, спасибо!',
-      timestamp: new Date(Date.now() - 1000 * 60 * 30),
-      unread: 0,
-      pinned: false,
-      online: false,
-    },
-    {
-      id: '3',
-      userId: '4',
-      name: 'Елена Смирнова',
-      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=elena',
-      lastMessage: 'До встречи!',
-      timestamp: new Date(Date.now() - 1000 * 60 * 60),
-      unread: 0,
-      pinned: false,
-      online: true,
-    },
-  ]);
-
-  const [messages, setMessages] = useState<Record<string, Message[]>>({
-    '1': [
-      {
-        id: '1',
-        text: 'Привет! Как дела?',
-        senderId: '2',
-        timestamp: new Date(Date.now() - 1000 * 60 * 10),
-        read: true,
-      },
-      {
-        id: '2',
-        text: 'Отлично! А у тебя?',
-        senderId: '1',
-        timestamp: new Date(Date.now() - 1000 * 60 * 8),
-        read: true,
-      },
-      {
-        id: '3',
-        text: 'Тоже хорошо, работаю над новым проектом',
-        senderId: '2',
-        timestamp: new Date(Date.now() - 1000 * 60 * 5),
-        read: false,
-      },
-    ],
-    '2': [
-      {
-        id: '4',
-        text: 'Привет! Что нового?',
-        senderId: '1',
-        timestamp: new Date(Date.now() - 1000 * 60 * 60),
-        read: true,
-      },
-      {
-        id: '5',
-        text: 'Отлично, спасибо!',
-        senderId: '3',
-        timestamp: new Date(Date.now() - 1000 * 60 * 30),
-        read: true,
-      },
-    ],
-    '3': [
-      {
-        id: '6',
-        text: 'Увидимся завтра!',
-        senderId: '1',
-        timestamp: new Date(Date.now() - 1000 * 60 * 120),
-        read: true,
-      },
-      {
-        id: '7',
-        text: 'До встречи!',
-        senderId: '4',
-        timestamp: new Date(Date.now() - 1000 * 60 * 60),
-        read: true,
-      },
-    ],
-  });
-
-  const [selectedChatId, setSelectedChatId] = useState<string | null>('1');
+  const [users, setUsers] = useState<LocalUser[]>([]);
+  const [chats, setChats] = useState<LocalChat[]>([]);
+  const [messages, setMessages] = useState<Record<number, LocalMessage[]>>({});
+  
+  const [selectedChatId, setSelectedChatId] = useState<number | null>(null);
   const [showProfile, setShowProfile] = useState(false);
-  const [profileUserId, setProfileUserId] = useState<string | null>(null);
+  const [profileUserId, setProfileUserId] = useState<number | null>(null);
   const [isCallActive, setIsCallActive] = useState(false);
-  const [callUser, setCallUser] = useState<User | null>(null);
+  const [callUser, setCallUser] = useState<LocalUser | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const selectedChat = chats.find((chat) => chat.id === selectedChatId);
-  const chatMessages = selectedChatId ? messages[selectedChatId] || [] : [];
+  useEffect(() => {
+    const savedToken = localStorage.getItem('sim_token');
+    const savedUser = localStorage.getItem('sim_user');
 
-  const handleSendMessage = (text: string) => {
-    if (!selectedChatId) return;
+    if (savedToken && savedUser) {
+      try {
+        const user = JSON.parse(savedUser);
+        setToken(savedToken);
+        setCurrentUser(user);
+        setIsAuthenticated(true);
+      } catch (error) {
+        localStorage.removeItem('sim_token');
+        localStorage.removeItem('sim_user');
+      }
+    }
+    setIsLoading(false);
+  }, []);
 
-    const newMessage: Message = {
-      id: Date.now().toString(),
-      text,
-      senderId: currentUser.id,
-      timestamp: new Date(),
-      read: false,
+  useEffect(() => {
+    if (isAuthenticated && currentUser) {
+      loadChats();
+      const interval = setInterval(loadChats, 5000);
+      return () => clearInterval(interval);
+    }
+  }, [isAuthenticated, currentUser]);
+
+  const loadChats = async () => {
+    if (!currentUser) return;
+    
+    try {
+      const chatsData = await api.getChats(currentUser.id);
+      const formattedChats: LocalChat[] = chatsData.map((chat) => ({
+        id: chat.id,
+        userId: chat.other_user_id || 0,
+        name: chat.name,
+        avatar: chat.avatar,
+        lastMessage: chat.last_message || '',
+        timestamp: chat.last_message_time ? new Date(chat.last_message_time) : new Date(),
+        unread: chat.unread_count,
+        pinned: chat.pinned,
+        online: chat.online || false,
+        isGroup: chat.is_group,
+        memberIds: [],
+      }));
+      setChats(formattedChats);
+    } catch (error) {
+      console.error('Failed to load chats:', error);
+    }
+  };
+
+  const loadMessages = async (chatId: number) => {
+    try {
+      const messagesData = await api.getMessages(chatId);
+      const formattedMessages: LocalMessage[] = messagesData.map((msg) => ({
+        id: msg.id.toString(),
+        text: msg.text,
+        senderId: msg.sender_id,
+        timestamp: new Date(msg.created_at),
+        read: msg.read,
+      }));
+      setMessages((prev) => ({ ...prev, [chatId]: formattedMessages }));
+    } catch (error) {
+      console.error('Failed to load messages:', error);
+    }
+  };
+
+  const handleLogin = (user: api.User, authToken: string) => {
+    const localUser: LocalUser = {
+      id: user.id,
+      name: user.name,
+      username: user.username,
+      avatar: user.avatar,
+      banner: user.banner,
+      bio: user.bio,
+      online: user.online,
     };
 
-    setMessages((prev) => ({
-      ...prev,
-      [selectedChatId]: [...(prev[selectedChatId] || []), newMessage],
-    }));
+    setCurrentUser(localUser);
+    setToken(authToken);
+    setIsAuthenticated(true);
 
-    setChats((prev) =>
-      prev.map((chat) =>
-        chat.id === selectedChatId
-          ? { ...chat, lastMessage: text, timestamp: new Date() }
-          : chat
-      )
-    );
+    localStorage.setItem('sim_token', authToken);
+    localStorage.setItem('sim_user', JSON.stringify(localUser));
   };
 
-  const handlePinChat = (chatId: string) => {
-    setChats((prev) =>
-      prev.map((chat) =>
-        chat.id === chatId ? { ...chat, pinned: !chat.pinned } : chat
-      )
-    );
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    setCurrentUser(null);
+    setToken(null);
+    setChats([]);
+    setMessages({});
+    localStorage.removeItem('sim_token');
+    localStorage.removeItem('sim_user');
+    toast.success('Вы вышли из аккаунта');
   };
 
-  const handleClearChat = (chatId: string) => {
+  const handleSelectChat = async (chatId: number) => {
+    setSelectedChatId(chatId);
+    if (!messages[chatId]) {
+      await loadMessages(chatId);
+    }
+    if (currentUser) {
+      await api.markMessagesAsRead(chatId, currentUser.id);
+    }
+  };
+
+  const handleSendMessage = async (text: string) => {
+    if (!selectedChatId || !currentUser) return;
+
+    try {
+      const message = await api.sendMessage(selectedChatId, currentUser.id, text);
+      
+      const newMessage: LocalMessage = {
+        id: message.id.toString(),
+        text: message.text,
+        senderId: message.sender_id,
+        timestamp: new Date(message.created_at),
+        read: message.read,
+      };
+
+      setMessages((prev) => ({
+        ...prev,
+        [selectedChatId]: [...(prev[selectedChatId] || []), newMessage],
+      }));
+
+      setChats((prev) =>
+        prev.map((chat) =>
+          chat.id === selectedChatId
+            ? { ...chat, lastMessage: text, timestamp: new Date() }
+            : chat
+        )
+      );
+    } catch (error) {
+      toast.error('Не удалось отправить сообщение');
+    }
+  };
+
+  const handlePinChat = async (chatId: number) => {
+    if (!currentUser) return;
+
+    const chat = chats.find((c) => c.id === chatId);
+    if (!chat) return;
+
+    const newPinned = !chat.pinned;
+
+    try {
+      await api.pinChat(chatId, currentUser.id, newPinned);
+      setChats((prev) =>
+        prev.map((c) => (c.id === chatId ? { ...c, pinned: newPinned } : c))
+      );
+    } catch (error) {
+      toast.error('Не удалось закрепить чат');
+    }
+  };
+
+  const handleClearChat = (chatId: number) => {
     setMessages((prev) => ({
       ...prev,
       [chatId]: [],
     }));
+    toast.success('Чат очищен');
   };
 
-  const handleDeleteChat = (chatId: string) => {
+  const handleDeleteChat = (chatId: number) => {
     setChats((prev) => prev.filter((chat) => chat.id !== chatId));
     if (selectedChatId === chatId) {
       setSelectedChatId(null);
     }
+    toast.success('Чат удалён');
   };
 
   const handleStartCall = () => {
+    const selectedChat = chats.find((c) => c.id === selectedChatId);
     if (selectedChat) {
       const user = users.find((u) => u.id === selectedChat.userId);
       if (user) {
@@ -207,70 +243,163 @@ const Index = () => {
     setCallUser(null);
   };
 
-  const handleShowProfile = (userId: string) => {
+  const handleShowProfile = (userId: number) => {
     setProfileUserId(userId);
     setShowProfile(true);
   };
 
-  const handleUpdateProfile = (updates: Partial<User>) => {
-    console.log('Profile updated:', updates);
+  const handleUpdateProfile = async (updates: Partial<LocalUser>) => {
+    if (!currentUser || !token) return;
+
+    try {
+      const response = await api.updateProfile(currentUser.id, token, updates);
+      const updatedUser = { ...currentUser, ...response.user };
+      setCurrentUser(updatedUser);
+      localStorage.setItem('sim_user', JSON.stringify(updatedUser));
+      toast.success('Профиль обновлён');
+    } catch (error) {
+      toast.error('Не удалось обновить профиль');
+    }
   };
 
-  const handleCreateGroup = (name: string, memberIds: string[]) => {
-    const newChat: Chat = {
-      id: Date.now().toString(),
-      userId: 'group',
-      name: name,
-      avatar: 'https://api.dicebear.com/7.x/shapes/svg?seed=' + name,
-      lastMessage: 'Группа создана',
-      timestamp: new Date(),
-      unread: 0,
-      pinned: false,
-      online: false,
-      isGroup: true,
-      memberIds: memberIds,
-    };
+  const handleCreateGroup = async (name: string, memberIds: number[]) => {
+    if (!currentUser) return;
 
-    setChats((prev) => [newChat, ...prev]);
-    setMessages((prev) => ({
-      ...prev,
-      [newChat.id]: [],
-    }));
+    try {
+      const userIdsWithCurrent = [currentUser.id, ...memberIds];
+      const chatId = await api.createChat(userIdsWithCurrent, name, true);
+      
+      await loadChats();
+      toast.success('Группа создана');
+    } catch (error) {
+      toast.error('Не удалось создать группу');
+    }
   };
 
-  const filteredUsers = users.filter(
-    (user) =>
-      user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.username.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const handleSearchUsers = async (query: string) => {
+    setSearchQuery(query);
+    if (query.trim()) {
+      try {
+        const foundUsers = await api.searchUsers(query);
+        setUsers(foundUsers.map(u => ({
+          id: u.id,
+          name: u.name,
+          username: u.username,
+          avatar: u.avatar,
+          bio: u.bio,
+          online: u.online,
+        })));
+      } catch (error) {
+        console.error('Failed to search users:', error);
+      }
+    } else {
+      setUsers([]);
+    }
+  };
+
+  const handleUserClick = async (userId: number) => {
+    if (!currentUser) return;
+
+    try {
+      const chatId = await api.createChat([currentUser.id, userId]);
+      await loadChats();
+      setSearchQuery('');
+      setUsers([]);
+      
+      setTimeout(() => {
+        handleSelectChat(chatId);
+      }, 500);
+    } catch (error) {
+      toast.error('Не удалось создать чат');
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-6xl mb-4">📱</div>
+          <p className="text-xl text-muted-foreground">Загрузка...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <AuthScreen onLogin={handleLogin} />;
+  }
+
+  const selectedChat = chats.find((chat) => chat.id === selectedChatId);
+  const chatMessages = selectedChatId ? messages[selectedChatId] || [] : [];
 
   const profileUser =
-    profileUserId === currentUser.id
+    profileUserId === currentUser?.id
       ? currentUser
       : users.find((u) => u.id === profileUserId);
 
   return (
     <div className="flex h-screen bg-background overflow-hidden">
       <ChatList
-        chats={chats}
-        selectedChatId={selectedChatId}
-        onSelectChat={setSelectedChatId}
-        onPinChat={handlePinChat}
-        onClearChat={handleClearChat}
-        onDeleteChat={handleDeleteChat}
-        onShowProfile={() => handleShowProfile(currentUser.id)}
-        onCreateGroup={handleCreateGroup}
-        users={filteredUsers}
+        chats={chats.map(c => ({
+          id: c.id.toString(),
+          userId: c.userId.toString(),
+          name: c.name,
+          avatar: c.avatar,
+          lastMessage: c.lastMessage,
+          timestamp: c.timestamp,
+          unread: c.unread,
+          pinned: c.pinned,
+          online: c.online,
+          isGroup: c.isGroup,
+        }))}
+        selectedChatId={selectedChatId?.toString() || null}
+        onSelectChat={(id) => handleSelectChat(parseInt(id))}
+        onPinChat={(id) => handlePinChat(parseInt(id))}
+        onClearChat={(id) => handleClearChat(parseInt(id))}
+        onDeleteChat={(id) => handleDeleteChat(parseInt(id))}
+        onShowProfile={() => currentUser && handleShowProfile(currentUser.id)}
+        onCreateGroup={(name, memberIds) => handleCreateGroup(name, memberIds.map(id => parseInt(id)))}
+        users={users.map(u => ({
+          id: u.id.toString(),
+          name: u.name,
+          username: u.username,
+          avatar: u.avatar,
+          bio: u.bio,
+          online: u.online,
+        }))}
         searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-        currentUser={currentUser}
+        onSearchChange={handleSearchUsers}
+        currentUser={currentUser ? {
+          id: currentUser.id.toString(),
+          name: currentUser.name,
+          username: currentUser.username,
+          avatar: currentUser.avatar,
+          bio: currentUser.bio,
+        } : { id: '0', name: '', username: '', avatar: '' }}
       />
 
       {selectedChat ? (
         <ChatWindow
-          chat={selectedChat}
-          messages={chatMessages}
-          currentUserId={currentUser.id}
+          chat={{
+            id: selectedChat.id.toString(),
+            userId: selectedChat.userId.toString(),
+            name: selectedChat.name,
+            avatar: selectedChat.avatar,
+            lastMessage: selectedChat.lastMessage,
+            timestamp: selectedChat.timestamp,
+            unread: selectedChat.unread,
+            pinned: selectedChat.pinned,
+            online: selectedChat.online,
+            isGroup: selectedChat.isGroup,
+          }}
+          messages={chatMessages.map(m => ({
+            id: m.id,
+            text: m.text,
+            senderId: m.senderId.toString(),
+            timestamp: m.timestamp,
+            read: m.read,
+          }))}
+          currentUserId={currentUser?.id.toString() || '0'}
           onSendMessage={handleSendMessage}
           onStartCall={handleStartCall}
           onShowProfile={() => handleShowProfile(selectedChat.userId)}
@@ -280,21 +409,44 @@ const Index = () => {
           <div className="text-center">
             <div className="text-6xl mb-4">💬</div>
             <p className="text-xl">Выберите чат для начала общения</p>
+            <button
+              onClick={handleLogout}
+              className="mt-4 text-sm text-primary hover:underline"
+            >
+              Выйти из аккаунта
+            </button>
           </div>
         </div>
       )}
 
       {showProfile && profileUser && (
         <ProfilePanel
-          user={profileUser}
-          isCurrentUser={profileUser.id === currentUser.id}
+          user={{
+            id: profileUser.id.toString(),
+            name: profileUser.name,
+            username: profileUser.username,
+            avatar: profileUser.avatar,
+            banner: profileUser.banner,
+            bio: profileUser.bio,
+            online: profileUser.online,
+          }}
+          isCurrentUser={profileUser.id === currentUser?.id}
           onClose={() => setShowProfile(false)}
-          onUpdateProfile={handleUpdateProfile}
+          onUpdateProfile={(updates) => handleUpdateProfile(updates)}
         />
       )}
 
       {isCallActive && callUser && (
-        <CallModal user={callUser} onEndCall={handleEndCall} />
+        <CallModal
+          user={{
+            id: callUser.id.toString(),
+            name: callUser.name,
+            username: callUser.username,
+            avatar: callUser.avatar,
+            online: callUser.online,
+          }}
+          onEndCall={handleEndCall}
+        />
       )}
     </div>
   );
