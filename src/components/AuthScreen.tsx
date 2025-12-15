@@ -59,9 +59,9 @@ const AuthScreen = ({ onLogin }: AuthScreenProps) => {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/10 to-background p-4">
       <Card className="w-full max-w-md animate-scale-in">
         <CardHeader className="text-center">
-          <div className="text-5xl mb-4">💬</div>
-          <CardTitle className="text-3xl">Мессенджер</CardTitle>
-          <CardDescription>Общайтесь с друзьями в реальном времени</CardDescription>
+          <div className="text-5xl mb-4">📱</div>
+          <CardTitle className="text-3xl font-bold">SIM</CardTitle>
+          <CardDescription>Газзз! Общайтесь с друзьями в реальном времени</CardDescription>
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="login" className="w-full">
